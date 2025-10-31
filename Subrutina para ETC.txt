@@ -1,0 +1,169 @@
+Option Explicit
+
+Sub AnalizarCalculoEnergia()
+    Dim fd As FileDialog
+    Dim RutaCompleta As String
+    Dim wb As Workbook
+    Dim wsRecap As Worksheet, wsFormula As Worksheet, wsDB As Worksheet
+    Dim celdaBuscada As Range
+    Dim celdaFormula1 As Range, celdaFormula2 As Range
+    Dim direccionFormula1 As String
+    Dim partesFormula() As String
+    Dim nombreHojaDestino As String
+    Dim celdaDestino As String
+    Dim rangoPrecedente As Range
+    Dim rangoCopiado As Range
+    Dim urlSharePoint As String
+    urlSharePoint = "https://vincic.sharepoint.com/sites/sf_ws_23827/"
+    Shell "cmd /c echo " & urlSharePoint & " | clip", vbHide
+
+    
+    On Error GoTo ManejoDeError
+    
+
+    ' --- 1. SELECCIONAR EL ARCHIVO (Basado en tu código) ---
+    MsgBox "Por favor, selecciona el archivo RECAP que deseas analizar.", vbInformation
+    
+    Set fd = Application.FileDialog(msoFileDialogFilePicker)
+    With fd
+        .Title = "Seleccione el archivo RECAP"
+        .Filters.Clear
+        .Filters.Add "Archivos de Excel", "*.xls; *.xlsx; *.xlsm"
+        .AllowMultiSelect = False
+
+        If .Show = -1 Then
+            RutaCompleta = .SelectedItems(1)
+        Else
+            MsgBox "No se seleccionó ningún archivo. Saliendo...", vbExclamation
+            Exit Sub
+        End If
+    End With
+    
+    Application.ScreenUpdating = False
+    
+    ' Abrir el libro seleccionado
+    Set wb = Workbooks.Open(RutaCompleta)
+    
+    ' --- 2. BUSCAR TEXTO EN HOJA "RECAP" ---
+    On Error Resume Next
+    Set wsRecap = wb.Sheets("RECAP")
+    If wsRecap Is Nothing Then
+        MsgBox "No se encontró la hoja 'RECAP' en el archivo: " & wb.Name, vbCritical
+        wb.Close False
+        Exit Sub
+    End If
+    On Error GoTo ManejoDeError
+    
+    ' Buscar en la columna B el texto
+    Set celdaBuscada = wsRecap.Columns("B").Find(What:="Cálculo de energía", LookIn:=xlValues, LookAt:=xlPart)
+    
+    If celdaBuscada Is Nothing Then
+        MsgBox "No se encontró el texto 'Cálculo de energía' en la columna B de la hoja RECAP.", vbExclamation
+        wb.Close False
+        Exit Sub
+    End If
+    
+    ' --- 3. ANALIZAR CELDA EN COLUMNA D ---
+    Set celdaFormula1 = wsRecap.Range("D" & celdaBuscada.Row)
+    
+    If Not celdaFormula1.HasFormula Then
+        MsgBox "La celda " & celdaFormula1.Address & " no contiene una fórmula.", vbExclamation
+        wb.Close False
+        Exit Sub
+    End If
+    
+    ' --- 4. OBTENER REFERENCIA DE LA FÓRMULA ---
+    direccionFormula1 = celdaFormula1.Formula
+    
+    ' Extraer nombre de hoja y celda (ej: ='Hoja Destino'!A1)
+    If InStr(direccionFormula1, "!") = 0 Then
+        MsgBox "La fórmula en " & celdaFormula1.Address & " no parece ser una referencia a otra hoja.", vbExclamation
+        wb.Close False
+        Exit Sub
+    End If
+    
+    partesFormula = Split(Mid(direccionFormula1, 2), "!") ' Dividir por "!"
+    nombreHojaDestino = Replace(partesFormula(0), "'", "") ' Quitar comillas simples
+    celdaDestino = partesFormula(1)
+    
+    ' --- 5. IR A LA CELDA REFERENCIADA Y ANALIZAR ---
+    On Error Resume Next
+    Set wsFormula = wb.Sheets(nombreHojaDestino)
+    If wsFormula Is Nothing Then
+        MsgBox "No se encontró la hoja referenciada: '" & nombreHojaDestino & "'", vbCritical
+        wb.Close False
+        Exit Sub
+    End If
+    On Error GoTo ManejoDeError
+
+    Set celdaFormula2 = wsFormula.Range(celdaDestino)
+    
+    If Not celdaFormula2.HasFormula Then
+        MsgBox "La celda de destino " & nombreHojaDestino & "!" & celdaDestino & " no contiene una fórmula.", vbExclamation
+        wb.Close False
+        Exit Sub
+    End If
+    
+    ' Verificar si es SUMA o SUBTOTAL
+    If Not (InStr(UCase(celdaFormula2.Formula), "SUM") > 0 Or InStr(UCase(celdaFormula2.Formula), "SUBTOTAL") > 0) Then
+        MsgBox "La fórmula en " & celdaFormula2.Address & " no es SUMA ni SUBTOTAL.", vbExclamation
+        wb.Close False
+        Exit Sub
+    End If
+    
+    ' --- 6. OBTENER RANGO PRECEDENTE (EL RANGO QUE SUMA) ---
+    On Error Resume Next
+    Set rangoPrecedente = celdaFormula2.DirectPrecedents
+    On Error GoTo ManejoDeError
+    
+    If rangoPrecedente Is Nothing Then
+        MsgBox "No se pudo determinar el rango que suma la fórmula en " & celdaFormula2.Address, vbCritical
+        wb.Close False
+        Exit Sub
+    End If
+    
+    ' --- 7. DEFINIR RANGO FINAL (COLUMNAS B a M) ---
+    ' Usar la hoja donde está el rango precedente
+    Set rangoCopiado = Intersect(rangoPrecedente.EntireRow, wsFormula.Range("B:M"))
+    
+    If rangoCopiado Is Nothing Then
+        MsgBox "Error al definir el rango de copiado (B:M).", vbCritical
+        wb.Close False
+        Exit Sub
+    End If
+    
+    ' --- 8. CREAR HOJA "DB" Y PEGAR DATOS ---
+    ' Eliminar hoja DB si ya existe
+    Application.DisplayAlerts = False
+    On Error Resume Next
+    wb.Sheets("DB").Delete
+    On Error GoTo ManejoDeError
+    Application.DisplayAlerts = True
+    
+    ' Añadir nueva hoja
+    Set wsDB = wb.Sheets.Add(After:=wb.Sheets(wb.Sheets.Count))
+    wsDB.Name = "DB"
+    
+    ' Copiar y pegar como valores
+    rangoCopiado.Copy
+    wsDB.Range("A1").PasteSpecial Paste:=xlPasteValues
+    
+    Application.CutCopyMode = False
+    wsDB.Range("A1").Select
+    
+    wb.Save
+    ' wb.Close False ' Descomentar si deseas cerrar el archivo después
+    
+    Application.ScreenUpdating = True
+    MsgBox "Proceso completado. Se han copiado los datos a la nueva pestaña 'DB'.", vbInformation
+    
+    Exit Sub
+
+ManejoDeError:
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    MsgBox "Ocurrió un error inesperado: " & vbCrLf & Err.Description, vbCritical
+    If Not wb Is Nothing Then
+        wb.Close False
+    End If
+End Sub
