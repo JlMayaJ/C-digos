@@ -1,0 +1,187 @@
+Hola, Necesito tu ayuda tengo este código: 
+
+Sub SincronizaLista_Personal_CIMESA()
+    Dim hoja As Worksheet
+
+    Set hoja = Sheets("Lista Sharepoint")
+    On Error GoTo ManejoDeError
+
+    hoja.ListObjects("Lista de Personal CIMESA").UpdateChanges xlListConflictDialog
+
+    MsgBox "El programa se actualiza correctamente.", vbInformation, "Sincronización exitosa"
+    Exit Sub
+
+ManejoDeError:
+    MsgBox "Hubo una falla en el proceso, por favor repite las instrucciones y vuelve a capturar los cambios en el programa.", vbExclamation, "Error en sincronización"
+End Sub
+Option Explicit
+
+Sub Ejecutar_Proceso_Completo()
+    Dim wb As Workbook: Set wb = ThisWorkbook
+    Dim wsShare As Worksheet, wsLista As Worksheet
+    Dim tablaDatos3 As ListObject, tablaListaPersonal As ListObject, tablaSharePoint As ListObject
+    Dim origen(0 To 1) As Variant
+    Dim idLista As String
+    Dim data As Variant
+    Dim i As Long, j As Long
+    Dim oldCalc As XlCalculation
+    Dim hadScreenUpdating As Boolean, hadAlerts As Boolean
+    
+    On Error GoTo ManejoDeError
+    
+    ' Guardar estado de Excel y acelerar
+    oldCalc = Application.Calculation
+    hadScreenUpdating = Application.ScreenUpdating
+    hadAlerts = Application.DisplayAlerts
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+    Application.Calculation = xlCalculationManual
+    
+    '---------------------------
+    ' 1) Actualizar conexiones
+    '---------------------------
+    On Error Resume Next
+    wb.Connections("ReportesNminasCimesa").Refresh
+    wb.Connections("Conexión").Refresh
+    On Error GoTo ManejoDeError
+    
+    '---------------------------
+    ' 2) Recrear tabla SharePoint
+    '---------------------------
+    Set wsShare = wb.Worksheets("Lista Sharepoint")
+    idLista = wb.Names("ID_LISTA").RefersToRange.Value
+    origen(0) = "https://vincic.sharepoint.com/sites/SFCIMESA/_vti_bin"
+    origen(1) = "{" & idLista & "}"
+    
+    'Eliminar tabla si existe
+    On Error Resume Next
+    wsShare.ListObjects("Lista_de_Personal_CIMESA").Delete
+    On Error GoTo ManejoDeError
+    
+    'Crear nueva tabla externa
+    Set tablaSharePoint = wsShare.ListObjects.Add(xlSrcExternal, origen, True, xlYes, wsShare.Range("B5"))
+    tablaSharePoint.Name = "Lista_de_Personal_CIMESA"
+    
+    '---------------------------
+    ' 3) Refrescar y ordenar Tabla_DatosExternos_3
+    '---------------------------
+    Set wsLista = wb.Worksheets("Lista de Personal")
+    Set tablaDatos3 = wsLista.ListObjects("Tabla_DatosExternos_3")
+    
+    wsLista.Activate
+    tablaDatos3.Range.Cells(1, 1).Select
+    
+    On Error Resume Next
+    Selection.ListObject.TableObject.Refresh
+    On Error GoTo ManejoDeError
+    
+    ' Ordenar por Title
+    With tablaDatos3
+        .Sort.SortFields.Clear
+        .Sort.SortFields.Add2 Key:=.ListColumns("Title").Range, _
+            SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:=xlSortNormal
+        With .Sort
+            .Header = xlYes
+            .MatchCase = False
+            .Orientation = xlTopToBottom
+            .SortMethod = xlPinYin
+            .Apply
+        End With
+    End With
+    
+    '---------------------------
+    ' 4) Validar columnas
+    '---------------------------
+    wsShare.Activate
+    Set tablaListaPersonal = wsShare.ListObjects("Lista_de_Personal_CIMESA")
+    
+    If tablaDatos3.ListColumns.Count - 1 <> tablaListaPersonal.ListColumns.Count - 1 Then
+        MsgBox "Revisar Nombres de Columnas: número de columnas (sin ID) no coincide", vbExclamation
+        GoTo Limpieza
+    End If
+    
+    For i = 2 To tablaDatos3.ListColumns.Count
+        If StrComp(tablaDatos3.ListColumns(i).Name, tablaListaPersonal.ListColumns(i).Name, vbTextCompare) <> 0 Then
+            MsgBox "Revisar Nombres de Columnas: no coinciden en nombre o en orden (col " & i & ")", vbExclamation
+            GoTo Limpieza
+        End If
+    Next i
+    
+    '---------------------------
+    ' 5) Copiar valores a partir de columna 2 (Title)
+    '---------------------------
+    If Not tablaDatos3.DataBodyRange Is Nothing Then
+        data = tablaDatos3.DataBodyRange.Value
+    Else
+        GoTo Paso6
+    End If
+    
+    
+    ' Agregar filas según la cantidad de registros de origen
+    For i = 1 To UBound(data, 1)
+        tablaListaPersonal.ListRows.Add
+    Next i
+    
+    ' Copiar columna 2 en adelante
+    For i = 1 To UBound(data, 1)       ' Filas
+        For j = 2 To UBound(data, 2)   ' Columnas desde Title
+            tablaListaPersonal.DataBodyRange.Cells(i, j).Value = data(i, j)
+        Next j
+    Next i
+    
+Paso6:
+    '---------------------------
+    ' 6) Sincronizar SharePoint
+    '---------------------------
+    wsShare.Activate
+    tablaSharePoint.Range.Cells(1, 1).Select
+    On Error Resume Next
+    tablaSharePoint.UpdateChanges xlListConflictDialog
+    If Err.Number = 0 Then
+        MsgBox "El programa se actualiza correctamente.", vbInformation, "Sincronización exitosa"
+    Else
+        MsgBox "Hubo un error en la sincronización: " & Err.Description, vbExclamation
+        Err.Clear
+    End If
+    On Error GoTo ManejoDeError
+
+    
+Limpieza:
+    Application.Calculation = xlCalculationManual
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    Exit Sub
+
+ManejoDeError:
+    Application.Calculation = xlCalculationManual
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    MsgBox "Hubo una falla en el proceso." & vbCrLf & "Error: " & Err.Number & " - " & Err.Description, vbExclamation
+    Resume Limpieza
+End Sub
+
+necesito que el paso 5
+'---------------------------
+    ' 5) Copiar valores a partir de columna 2 (Title)
+    '---------------------------
+    If Not tablaDatos3.DataBodyRange Is Nothing Then
+        data = tablaDatos3.DataBodyRange.Value
+    Else
+        GoTo Paso6
+    End If
+    
+    
+    ' Agregar filas según la cantidad de registros de origen
+    For i = 1 To UBound(data, 1)
+        tablaListaPersonal.ListRows.Add
+    Next i
+    
+    ' Copiar columna 2 en adelante
+    For i = 1 To UBound(data, 1)       ' Filas
+        For j = 2 To UBound(data, 2)   ' Columnas desde Title
+            tablaListaPersonal.DataBodyRange.Cells(i, j).Value = data(i, j)
+        Next j
+    Next i
+
+sea modificado para hacer que se eliminen las filas de la tabla "Lista_de_Personal_CIMESA" y después regrese a la hoja "Lista de Personal" a la tabla "Tabla_DatosExternos_3" y que copie todos los registros a partir de la columna "Title" que es la segunda hasta la columna "Responsable funcional" que es la columna 24 
+y después de copiarlos regrese a la pestaña "Lista SharePoint" a la tabla "Lista_de_Personal_CIMESA" y se posicione en la celda C6 que es la primera fila de la tabla y pegue como valores y ya posteriormente ejecute el Paso 6

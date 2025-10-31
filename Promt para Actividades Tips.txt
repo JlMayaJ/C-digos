@@ -1,0 +1,68 @@
+Hola, Necesito tu ayuda para obtener el código para un script en Excel de automatizar los pasos que necesito que realice son los siguientes pasos:
+
+Libro Excel Involucrado: Tips_Actividad.xlsx 
+
+Directorio de origen del Libro en SharePoint: "https://vincic.sharepoint.com/sites/CimesaGroups"
+
+Hojas involucradas: 
+
+"PT TASK"
+
+"TIPS ACTIVIDAD"
+
+"VALIDACION"
+
+"INCIDENCIAS"
+
+Objetos Involucrados:
+
+Objeto: "Semana_maxima" en hoja: "TIPS ACTIVIDAD" 
+
+Tablas Dinámicas involucradas: 
+
+TablaDinámica2 en hoja: "PT TASK"
+
+Conexiones Involucradas:
+
+Conexión "ReportesNminasCimesa" para la tabla "Tabla_DatosExternos_14"
+
+Conexión "ThisWorkbookDataModel" para "Modelos de datos"
+
+Conexión "TIPS" para "Tabla_DatosExternos_1"
+
+Conexión "TIPS 1" para "Tabla_DatosExternos_12"
+
+Conexión "WorksheetConnection_Tips_Actividad.xlsx!Tabla_DatosExternos_1"
+
+Tablas involucradas:
+
+Tabla Tabla_DatosExternos_1 en hoja: "TIPS ACTIVIDAD"
+
+Tabla Tabla_DatosExternos_14 en hoja: "VALIDACION"
+
+Tabla Tabla_DatosExternos_12 en hoja: "INCIDENCIAS"
+
+Columnas involucradas:
+
+Columna "Estatus" en "Tabla_DatosExternos_14"
+
+Columna "Actividad para layout" en "Tabla_DatosExternos_14"
+
+Columna "Layout" en "Tabla_DatosExternos_14"
+
+Columna "DATE[Year]" en "Tabla_DatosExternos_1" que sea igual al año en curso
+
+Solicitud:
+
+Primer paso: Actualiza todas la conexiones
+Segundo paso: Actualiza todas las tablas incluyendo la dinámica
+Tercer paso: Filtra la Columna "DATE[Year]" en "Tabla_DatosExternos_1" que sea igual al año en curso
+Cuarto paso: Filtra la Tabla dinámica "TablaDinámica2" para "DATE[WeekNumber]" con el valor del Objeto "Semana_maxima"
+Quinto paso: Actualiza la tabla "Tabla_DatosExternos_14" y filtra Columna "Estatus" seleccionando todo menos "OK"
+Sexto paso: Copia Contenido de Columna "Layout" (solo celdas filtradas)
+Séptimo paso: Abre un libro nuevo y pegar con valores empezando en la celda A1 en la hoja abierta
+Octavo paso: Guarda el nuevo libro como .txt Texto (delimitado por tabulaciones .txt) y nombra con el texto de "Semana " concatenado con el valor del objeto "Semana_maxima" y " " más el Año en curso. 
+Noveno paso: Solicita la ubicacion del archivo y despues de guardarlo cierra el archivo y genera un mensaje que diga "Se genero el Layout" concatenado con el nombre del archivo y concatenalo con la ubicacion seleccionada.
+
+Nota agregar gestor de errores con mensajes de identificacion de error en el proceso. 
+

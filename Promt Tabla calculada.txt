@@ -1,0 +1,24 @@
+Hola, Necesito tu ayuda para obtener el código en lenguaje Dax para PowerBi Microsoft para crear una tabla calculada considera lo siguiente:
+
+Nombre de la tabla a crear: 01 - Ingresos Mensuales
+
+Tablas involucradas: "53 - CBT - Table"
+
+Columnas a incluir de la tabla: 
+
+- Mes - Año
+- MesAño
+- MesAño anterior
+- Ingreso Acumulado
+- Ingreso Mensual
+
+Requerimiento
+
+Crear nueva tabla a partir de "53 - CBT - Table" que sumarize la columna "Mes - Año" y posteriormente para la crear la columna "MesAño" la obtenga de extraer el mes y el año que se incluyen como en el ejemplo "may.-25" "may" debe ser el mes  y es equivalente a mayo es decir el mes 5 y después de los caracteres ".-" el 25 es el año 2025 necesito que se calcule un número entero para poder buscar en una columna siguiente el MesAño anterior es decir para la columna "- MesAño anterior" necesito que se calcule el MesAño anterior al registrado en la columna "MesAño", para la Columna "Ingreso Acumulado" calcule el registro que es texto de la columna utilizando un código similar a este:
+
+VALUE(CALCULATE(
+    SELECTEDVALUE('53 - CBT - Table'[F_5]),
+    '53 - CBT - Table'[CodeAxe] = 1
+))
+
+convirtiéndolo en valor y considerándolo como valor decimal y por ultimo, para calcular la columna "Ingreso Mensual" toma el ingreso acumulado del MesAño en selección y resta el valor del ingreso acumulado del MesAño anterior. 

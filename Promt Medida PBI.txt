@@ -1,0 +1,30 @@
+Hola, Necesito tu ayuda para obtener el código en lenguaje Dax para PowerBi Microsoft para crear una medida 
+
+Considera los siguientes datos:
+
+TABLA ORIGEN 
+- "0 - Consumos Combustible 2025"
+
+COLUMNAS 
+- "Emision de Co2 equ"
+
+- "Fecha"
+
+Tabla de Fechas
+
+- "Fechas" 
+
+RELACION
+
+- "0 - Consumos Combustible 2025" [Fecha] (*:1) "Fechas" [Date]
+
+
+NOMBRE MEDIDA NUEVA: Emisiones Combustibles (tCO2 eq) 12M deslizantes
+
+
+REQUERIMIENTO:
+
+Calcula el valor de las "Emision de Co2 equ" de los últimos 12 meses considerando que hay en la pagina filtro contextual de Mes - Año en la tabla "Fechas" [Date] que debe solo considerar el valor seleccionado para que a partir de ese mes recorra hacia el pasado los 12 meses anteriores. 
+
+
+Considera que la fecha seleccionada solo esta expresada en Mes y Año no incluye los días 

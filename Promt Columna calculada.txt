@@ -1,0 +1,15 @@
+Hola, Necesito tu ayuda para obtener el código en lenguaje Dax para PowerBi Microsoft para crear una columna 
+
+Considera los siguientes datos:
+
+Tabla o Tablas Involucradas:
+ 
+Tabla de origen de la columna: "Reporte Cotizaciones Concretos"
+
+Columnas involucradas 
+
+Columna: "FECHA COT." tipo: "fecha"
+
+Nombre nueva columna:"Vigencia estimada"
+
+Se debe calcular aumentando 3 meses a la Columna "FECHA COT." 

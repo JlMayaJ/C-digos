@@ -1,0 +1,186 @@
+Sub Actualiza_tabla_RECAP_EDC()
+    On Error GoTo ErrHandler
+
+    ' Paso 1: Actualizar archivo EDC
+    Call ActualizarArchivoEDC
+
+    ' Paso 2: Verificar y copiar datos al archivo PFO
+    Call ProcesarArchivoPFO
+
+    MsgBox "Proceso completado con éxito.", vbInformation
+    Exit Sub
+
+ErrHandler:
+    MsgBox "Ocurrió un error durante el proceso: " & Err.Description, vbCritical
+End Sub
+Sub ActualizarArchivoEDC()
+    Dim fd As FileDialog
+    Dim RutaCompleta As String
+    Dim wb As Workbook
+    Dim pq As WorkbookQuery
+    Dim ws As Worksheet, tbl As ListObject
+    Dim costoCol As Long, i As Long
+    Dim destinoCol As Variant
+    Dim destinoIndex As Long
+    Dim celdaDestino As Range
+
+    ' URL que debe copiar el usuario
+    Dim urlSharePoint As String
+    urlSharePoint = "https://vincic.sharepoint.com/sites/sf_ws_23827/"
+    Shell "cmd /c echo " & urlSharePoint & " | clip", vbHide
+
+    MsgBox "La dirección del sitio se ha copiado al portapapeles:" & vbCrLf & vbCrLf & _
+           urlSharePoint & vbCrLf & vbCrLf & _
+           "Pega esta dirección en la barra superior del cuadro de selección y presiona Enter." & vbCrLf & _
+           "Luego busca el archivo EDC en Woodstock.", vbInformation, "Instrucciones"
+
+    Set fd = Application.FileDialog(msoFileDialogFilePicker)
+    With fd
+        .Title = "Seleccione el archivo EDC en Woodstock"
+        .Filters.Clear
+        .Filters.Add "Archivos de Excel", "*.xls; *.xlsx; *.xlsm"
+        .AllowMultiSelect = False
+
+        If .Show = -1 Then
+            RutaCompleta = .SelectedItems(1)
+            If InStr(1, RutaCompleta, "sf_ws_23827", vbTextCompare) = 0 Then
+                MsgBox "Debes buscar EDC en Woodstock", vbExclamation, "Ruta Incorrecta"
+                Exit Sub
+            End If
+
+            Set wb = ThisWorkbook
+            For Each pq In wb.Queries
+                If pq.Name = "Ruta_Archivo" Then
+                    pq.Formula = "let Origen = {""" & RutaCompleta & """} in Origen"
+                End If
+            Next pq
+
+            wb.RefreshAll
+            MsgBox "Parámetro 'Ruta_Archivo' actualizado.", vbInformation
+
+            ' Copiar encabezados posteriores a COSTO
+            Set ws = wb.Sheets("RECAP EDC")
+            Set tbl = ws.ListObjects("RECAP")
+            Set Edcvs = wb.Sheets("EDCvsPFO")
+
+            costoCol = 0
+            For i = 1 To tbl.ListColumns.Count
+                If UCase(tbl.ListColumns(i).Name) = "COSTO" Then
+                    costoCol = i
+                    Exit For
+                End If
+            Next i
+
+            If costoCol = 0 Then
+                MsgBox "No se encontró la columna COSTO.", vbCritical
+                Exit Sub
+            End If
+
+            destinoCol = Array("J1", "M1", "P1", "S1", "V1", "Y1", "AB1", "AE1", "AH1", "AK1", "AN1")
+            destinoIndex = 0
+
+            ' Desproteger hoja si está protegida
+            On Error Resume Next
+            ws.Unprotect Password:=""
+            On Error GoTo 0
+
+            For i = costoCol + 1 To tbl.ListColumns.Count
+                If UCase(tbl.ListColumns(i).Name) = UCase("Total obra") Then Exit For
+                If destinoIndex <= UBound(destinoCol) Then
+                    Set celdaDestino = Edcvs.Range(destinoCol(destinoIndex))
+                    celdaDestino.Value = tbl.ListColumns(i).Name
+                    celdaDestino.Locked = True
+                    destinoIndex = destinoIndex + 1
+                Else
+                    Exit For
+                End If
+            Next i
+
+            ' Proteger hoja nuevamente
+            ws.Protect Password:="", UserInterfaceOnly:=True
+
+            MsgBox "Encabezados copiados y bloqueados correctamente.", vbInformation
+        Else
+            MsgBox "No se seleccionó ningún archivo.", vbExclamation
+            Exit Sub
+        End If
+    End With
+End Sub
+
+Sub ProcesarArchivoPFO()
+    Dim fd As FileDialog
+    Dim RutaPFO As String
+    Dim wbPFO As Workbook
+    Dim wbOrigen As Workbook
+    Dim hojaBuscada As String
+    hojaBuscada = "EDCvsPFO"
+
+    Dim origenHoja As Worksheet, destinoHoja As Worksheet
+    Dim columnas() As String, filas() As Variant
+    Dim col As Variant, f As Variant
+    Dim celdaDestino As Range
+
+    MsgBox "Debe encontrar el Archivo de PFO en Woodstock.", vbInformation
+
+    Set fd = Application.FileDialog(msoFileDialogFilePicker)
+    With fd
+        .Title = "Seleccione el archivo PFO en Woodstock"
+        .Filters.Clear
+        .Filters.Add "Archivos de Excel", "*.xls; *.xlsx; *.xlsm"
+        .AllowMultiSelect = False
+
+        If .Show = -1 Then
+            RutaPFO = .SelectedItems(1)
+            Set wbPFO = Workbooks.Open(RutaPFO)
+
+            If SheetExists(hojaBuscada, wbPFO) Then
+                Set wbOrigen = ThisWorkbook
+
+                If Not SheetExists(hojaBuscada, wbOrigen) Then
+                    MsgBox "No se encontró la hoja '" & hojaBuscada & "' en el archivo origen.", vbCritical
+                    wbPFO.Close False
+                    Exit Sub
+                End If
+
+                columnas = Split("J,M,P,S,V,Y,AB,AE,AH,AK,AN", ",")
+                filas = Array(17, 18, 19, 22, 23, 24, 25, 28, 29, 30, 31, 35, 36, 37, 38, 39, 40, 43, 44, 47, 50, 51)
+
+                Set origenHoja = wbOrigen.Sheets(hojaBuscada)
+                Set destinoHoja = wbPFO.Sheets(hojaBuscada)
+
+                ' Desproteger hoja destino si está protegida
+                On Error Resume Next
+                destinoHoja.Unprotect Password:=""
+                On Error GoTo 0
+
+                ' Copiar datos y bloquear celdas
+                For Each col In columnas
+                    For Each f In filas
+                        Set celdaDestino = destinoHoja.Range(col & f)
+                        celdaDestino.Value = origenHoja.Range(col & f).Value
+                        celdaDestino.Locked = True
+                    Next f
+                Next col
+
+                ' Proteger hoja destino para evitar modificaciones
+                destinoHoja.Protect Password:="ETCCIM", UserInterfaceOnly:=True
+
+                MsgBox "Datos copiados y bloqueados correctamente en '" & hojaBuscada & "'.", vbInformation
+                wbPFO.Close SaveChanges:=False
+            Else
+                MsgBox "No se encontró la hoja '" & hojaBuscada & "' en el archivo PFO.", vbCritical
+                wbPFO.Close False
+            End If
+        Else
+            MsgBox "No se seleccionó el archivo PFO.", vbExclamation
+            Exit Sub
+        End If
+    End With
+End Sub
+Function SheetExists(sheetName As String, wb As Workbook) As Boolean
+    Dim sh As Worksheet
+    On Error Resume Next
+    Set sh = wb.Sheets(Trim(sheetName))
+    SheetExists = Not sh Is Nothing
+    On Error GoTo 0
+End Function
